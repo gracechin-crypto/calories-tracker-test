@@ -14,30 +14,82 @@ export type LogMealResult = {
   meal_id: string
 }
 
+// Strip quantity prefixes and filler words to extract the core dish name
+function extractDishKeywords(raw: string): string {
+  return raw
+    .toLowerCase()
+    // Remove leading quantity + unit + optional "of": "1 plate of", "2 bowls of", "100g of"
+    .replace(/^\d+(\.\d+)?\s*(plates?|bowls?|cups?|pieces?|servings?|portions?|slices?|sticks?|rolls?|pcs?|g|kg|ml|l)\s+(of\s+)?/i, '')
+    // Remove standalone filler words
+    .replace(/\b(a|an|the|of|with|and|some|just|maybe|half|big|small|large|medium|hot|cold|iced|extra)\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 export async function logMeal(description: string): Promise<LogMealResult> {
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Not authenticated')
 
-  // Try fuzzy match against food_items
-  const { data: matches } = await supabase
-    .from('food_items')
-    .select('*')
-    .ilike('name', `%${description}%`)
-    .limit(1)
+  const cleaned = extractDishKeywords(description)
+  console.log(`[logMeal] raw="${description}" cleaned="${cleaned}"`)
+
+  // Step 1: try phrase match on the cleaned string
+  let matchedItem: Record<string, unknown> | null = null
+
+  if (cleaned) {
+    const { data: phraseMatches } = await supabase
+      .from('food_items')
+      .select('*')
+      .ilike('name', `%${cleaned}%`)
+      .limit(1)
+
+    if (phraseMatches && phraseMatches.length > 0) {
+      matchedItem = phraseMatches[0]
+      console.log(`[logMeal] phrase match: found "${phraseMatches[0].name}"`)
+    } else {
+      console.log(`[logMeal] phrase match: no match for "${cleaned}"`)
+    }
+  }
+
+  // Step 2: if no phrase match, try each keyword individually (≥3 chars)
+  if (!matchedItem && cleaned) {
+    const keywords = cleaned.split(' ').filter((w) => w.length >= 3)
+    for (const keyword of keywords) {
+      const { data: kwMatches } = await supabase
+        .from('food_items')
+        .select('*')
+        .ilike('name', `%${keyword}%`)
+        .limit(5)
+
+      const names = kwMatches?.map((r) => (r as Record<string, unknown>).name) ?? []
+      console.log(`[logMeal] keyword "${keyword}" → [${names.join(', ')}]`)
+
+      if (kwMatches && kwMatches.length > 0) {
+        matchedItem = kwMatches[0]
+        console.log(`[logMeal] keyword match: picked "${kwMatches[0].name}"`)
+        break
+      }
+    }
+  }
+
+  if (matchedItem) {
+    console.log(`[logMeal] best match: "${(matchedItem as Record<string, unknown>).name}" (source=local_db)`)
+  } else {
+    console.log(`[logMeal] no DB match → AI fallback`)
+  }
 
   let result: Omit<LogMealResult, 'meal_id'>
 
-  if (matches && matches.length > 0) {
-    const item = matches[0]
+  if (matchedItem) {
     result = {
-      name: item.name,
-      calories: item.calories,
-      protein_g: item.protein_g,
-      carbs_g: item.carbs_g,
-      fat_g: item.fat_g,
-      serving_description: item.serving_description,
+      name: matchedItem.name as string,
+      calories: matchedItem.calories as number,
+      protein_g: matchedItem.protein_g as number,
+      carbs_g: matchedItem.carbs_g as number,
+      fat_g: matchedItem.fat_g as number,
+      serving_description: matchedItem.serving_description as string,
       source: 'local_db',
     }
   } else {
