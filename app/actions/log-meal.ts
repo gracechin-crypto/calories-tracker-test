@@ -14,18 +14,38 @@ export type LogMealResult = {
   meal_id: string
 }
 
-// Build the parenthetical suffix that identifies a variant entry in food_items,
-// handling compound modifiers (chicken type × rice type).
+// Build the parenthetical suffix that identifies a variant entry in food_items.
+// Compound conditions are checked before single-axis ones.
+// A suffix that doesn't match any variant row safely falls through to phrase/keyword/AI.
 function buildVariantSuffix(raw: string): string | null {
   const lower = raw.toLowerCase()
-  const isRoasted = /roasted|roast/.test(lower)
+
+  // Chicken rice: preparation × rice type
+  const isRoasted  = /roasted|roast/.test(lower)
   const isWhiteRice = /white rice|plain rice|steamed rice/.test(lower)
-  const isLessOil = /less oil|low oil|little oil|no oil/.test(lower)
+  const isLessOil  = /less oil|low oil|little oil|no oil/.test(lower)
 
   if (isRoasted && isWhiteRice) return 'roasted chicken, white rice'
-  if (isRoasted) return 'roasted chicken, oily rice'
+  if (isRoasted)   return 'roasted chicken, oily rice'
   if (isWhiteRice) return 'white rice'
-  if (isLessOil) return 'less oil'
+  if (isLessOil)   return 'less oil'
+
+  // Fish soup: fish preparation × broth type
+  const isFriedFish  = /fried fish|crispy fish/.test(lower)
+  const isMilkyBroth = /milky broth|milk broth|creamy broth|milk soup|evaporated milk/.test(lower)
+
+  if (isFriedFish && isMilkyBroth) return 'fried fish, milky broth'
+  if (isFriedFish)   return 'fried fish, clear broth'
+  if (isMilkyBroth)  return 'milky broth'
+
+  // Laksa type
+  if (/\basam\b/.test(lower)) return 'asam'
+
+  // Noodle serving style — "dry" and "soup" are safe to try broadly:
+  // if no matching variant exists the ilike miss falls through automatically.
+  if (/\bdry\b/.test(lower)) return 'dry'
+  if (/\bsoup\b/.test(lower) && /\b(mee|wonton|bak chor|mee pok)\b/.test(lower)) return 'soup'
+
   return null
 }
 
