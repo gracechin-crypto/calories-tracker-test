@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition, useEffect } from 'react'
+import Link from 'next/link'
 import { logout } from '@/app/actions/auth'
 import { logMeal, getTodayMeals, type LogMealResult, type TodayMeal } from '@/app/actions/log-meal'
 
@@ -41,14 +42,22 @@ export default function Home() {
         {/* Header */}
         <div className="flex items-center justify-between pt-4">
           <h1 className="text-2xl font-bold tracking-tight">Calories Tracker</h1>
-          <form action={logout}>
-            <button
-              type="submit"
+          <div className="flex items-center gap-4">
+            <Link
+              href="/dashboard"
               className="text-sm text-gray-500 hover:text-gray-700 underline underline-offset-2"
             >
-              Log out
-            </button>
-          </form>
+              Dashboard →
+            </Link>
+            <form action={logout}>
+              <button
+                type="submit"
+                className="text-sm text-gray-500 hover:text-gray-700 underline underline-offset-2"
+              >
+                Log out
+              </button>
+            </form>
+          </div>
         </div>
 
         {/* Chat input */}
