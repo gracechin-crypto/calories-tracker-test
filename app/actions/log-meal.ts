@@ -14,6 +14,14 @@ export type LogMealResult = {
   meal_id: string
 }
 
+// Detect preparation modifier keywords that map to a variant entry in food_items
+function detectVariantModifier(raw: string): string | null {
+  const lower = raw.toLowerCase()
+  if (/white rice|plain rice|steamed rice/.test(lower)) return 'white rice'
+  if (/less oil|low oil|little oil|no oil/.test(lower)) return 'less oil'
+  return null
+}
+
 // Strip quantity prefixes and filler words to extract the core dish name
 function extractDishKeywords(raw: string): string {
   return raw
@@ -33,10 +41,29 @@ export async function logMeal(description: string): Promise<LogMealResult> {
   if (!user) throw new Error('Not authenticated')
 
   const cleaned = extractDishKeywords(description)
-  console.log(`[logMeal] raw="${description}" cleaned="${cleaned}"`)
+  const modifier = detectVariantModifier(description)
+  console.log(`[logMeal] raw="${description}" cleaned="${cleaned}" modifier=${modifier ?? 'none'}`)
+
+  let matchedItem: Record<string, unknown> | null = null
+
+  // Step 0: if a variant modifier is present, try the variant entry first
+  if (modifier && cleaned) {
+    const variantName = `${cleaned} (${modifier})`
+    const { data: variantMatches } = await supabase
+      .from('food_items')
+      .select('*')
+      .ilike('name', `%${variantName}%`)
+      .limit(1)
+
+    if (variantMatches && variantMatches.length > 0) {
+      matchedItem = variantMatches[0]
+      console.log(`[logMeal] variant search: "${variantName}" → found "${variantMatches[0].name}"`)
+    } else {
+      console.log(`[logMeal] variant search: "${variantName}" → no match, continuing`)
+    }
+  }
 
   // Step 1: try phrase match on the cleaned string
-  let matchedItem: Record<string, unknown> | null = null
 
   if (cleaned) {
     const { data: phraseMatches } = await supabase
