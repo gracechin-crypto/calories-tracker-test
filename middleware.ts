@@ -1,6 +1,8 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+const PUBLIC_PATHS = ['/login', '/signup']
+
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({
     request: {
@@ -31,7 +33,16 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  await supabase.auth.getUser()
+  const { data: { user } } = await supabase.auth.getUser()
+  const { pathname } = request.nextUrl
+
+  if (!user && !PUBLIC_PATHS.includes(pathname)) {
+    return NextResponse.redirect(new URL('/login', request.url))
+  }
+
+  if (user && PUBLIC_PATHS.includes(pathname)) {
+    return NextResponse.redirect(new URL('/', request.url))
+  }
 
   return response
 }
