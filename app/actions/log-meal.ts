@@ -14,11 +14,18 @@ export type LogMealResult = {
   meal_id: string
 }
 
-// Detect preparation modifier keywords that map to a variant entry in food_items
-function detectVariantModifier(raw: string): string | null {
+// Build the parenthetical suffix that identifies a variant entry in food_items,
+// handling compound modifiers (chicken type × rice type).
+function buildVariantSuffix(raw: string): string | null {
   const lower = raw.toLowerCase()
-  if (/white rice|plain rice|steamed rice/.test(lower)) return 'white rice'
-  if (/less oil|low oil|little oil|no oil/.test(lower)) return 'less oil'
+  const isRoasted = /roasted|roast/.test(lower)
+  const isWhiteRice = /white rice|plain rice|steamed rice/.test(lower)
+  const isLessOil = /less oil|low oil|little oil|no oil/.test(lower)
+
+  if (isRoasted && isWhiteRice) return 'roasted chicken, white rice'
+  if (isRoasted) return 'roasted chicken, oily rice'
+  if (isWhiteRice) return 'white rice'
+  if (isLessOil) return 'less oil'
   return null
 }
 
@@ -41,14 +48,14 @@ export async function logMeal(description: string): Promise<LogMealResult> {
   if (!user) throw new Error('Not authenticated')
 
   const cleaned = extractDishKeywords(description)
-  const modifier = detectVariantModifier(description)
-  console.log(`[logMeal] raw="${description}" cleaned="${cleaned}" modifier=${modifier ?? 'none'}`)
+  const suffix = buildVariantSuffix(description)
+  console.log(`[logMeal] raw="${description}" cleaned="${cleaned}" modifier=${suffix ?? 'none'}`)
 
   let matchedItem: Record<string, unknown> | null = null
 
   // Step 0: if a variant modifier is present, try the variant entry first
-  if (modifier && cleaned) {
-    const variantName = `${cleaned} (${modifier})`
+  if (suffix && cleaned) {
+    const variantName = `${cleaned} (${suffix})`
     const { data: variantMatches } = await supabase
       .from('food_items')
       .select('*')
