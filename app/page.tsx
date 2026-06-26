@@ -5,26 +5,34 @@ import Link from 'next/link'
 import { logout } from '@/app/actions/auth'
 import { logMeal, getTodayMeals, type LogMealResult, type TodayMeal } from '@/app/actions/log-meal'
 import { logMealFromPhoto } from '@/app/actions/log-meal-photo'
+import { logMealMulti, type MultiLogResult } from '@/app/actions/log-meal-multi'
 
 function sourceBadge(source: string) {
-  if (source === 'local_db')          return { label: 'Database',       cls: 'bg-green-100 text-green-700' }
-  if (source === 'ai_photo_estimate') return { label: 'Photo estimate', cls: 'bg-purple-100 text-purple-700' }
-  return                                     { label: 'AI estimate',    cls: 'bg-blue-100 text-blue-700' }
+  if (source === 'local_db')          return { label: 'Database',    cls: 'bg-green-100 text-green-700' }
+  if (source === 'ai_photo_estimate') return { label: 'Photo',       cls: 'bg-purple-100 text-purple-700' }
+  if (source === 'multi_item')        return { label: 'Multi-item',  cls: 'bg-indigo-100 text-indigo-700' }
+  return                                     { label: 'AI estimate', cls: 'bg-blue-100 text-blue-700' }
 }
 
-export default function Home() {
-  const [mode, setMode] = useState<'type' | 'snap'>('type')
+type Mode = 'type' | 'snap' | 'multi'
 
-  // Text mode state
+export default function Home() {
+  const [mode, setMode] = useState<Mode>('type')
+
+  // Text mode
   const [input, setInput] = useState('')
 
-  // Photo mode state
+  // Photo mode
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null)
   const [photoDetails, setPhotoDetails] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Shared state
+  // Multi mode
+  const [multiItems, setMultiItems] = useState<string[]>(['', ''])
+  const [multiResult, setMultiResult] = useState<(MultiLogResult & { ok: true }) | null>(null)
+
+  // Shared
   const [result, setResult] = useState<LogMealResult | null>(null)
   const [resultPhotoUrl, setResultPhotoUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -35,22 +43,23 @@ export default function Home() {
     getTodayMeals().then(setMeals)
   }, [])
 
-  // Revoke object URL on unmount
   useEffect(() => {
     return () => {
       if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl)
     }
   }, [photoPreviewUrl])
 
-  function switchMode(next: 'type' | 'snap') {
+  function switchMode(next: Mode) {
     setMode(next)
     setError(null)
     setResult(null)
     setResultPhotoUrl(null)
+    setMultiResult(null)
     if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl)
     setPhotoFile(null)
     setPhotoPreviewUrl(null)
     setPhotoDetails('')
+    setMultiItems(['', ''])
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
@@ -111,6 +120,26 @@ export default function Home() {
     })
   }
 
+  const hasMultiInput = multiItems.some((v) => v.trim())
+
+  const handleMultiSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!hasMultiInput) return
+    setError(null)
+    setMultiResult(null)
+
+    startTransition(async () => {
+      const r = await logMealMulti(multiItems)
+      if (!r.ok) {
+        setError(r.error)
+        return
+      }
+      setMultiResult(r)
+      setMultiItems(['', ''])
+      setMeals(await getTodayMeals())
+    })
+  }
+
   const totalCalories = meals.reduce((sum, m) => sum + m.calories, 0)
 
   return (
@@ -141,27 +170,22 @@ export default function Home() {
         <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
           {/* Mode tabs */}
           <div className="mb-4 flex gap-1 rounded-lg bg-gray-100 p-1">
-            <button
-              type="button"
-              onClick={() => switchMode('type')}
-              className={`flex-1 rounded-md py-1.5 text-sm font-medium transition-colors ${
-                mode === 'type' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              Type it
-            </button>
-            <button
-              type="button"
-              onClick={() => switchMode('snap')}
-              className={`flex-1 rounded-md py-1.5 text-sm font-medium transition-colors ${
-                mode === 'snap' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              Snap it
-            </button>
+            {(['type', 'snap', 'multi'] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => switchMode(m)}
+                className={`flex-1 rounded-md py-1.5 text-sm font-medium transition-colors ${
+                  mode === m ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                {m === 'type' ? 'Type it' : m === 'snap' ? 'Snap it' : 'Multiple'}
+              </button>
+            ))}
           </div>
 
-          {mode === 'type' ? (
+          {/* ── Type it ── */}
+          {mode === 'type' && (
             <>
               <h2 className="mb-3 text-sm font-medium text-gray-700">What did you eat?</h2>
               <form onSubmit={handleTextSubmit} className="flex gap-2">
@@ -182,18 +206,17 @@ export default function Home() {
                 </button>
               </form>
             </>
-          ) : (
+          )}
+
+          {/* ── Snap it ── */}
+          {mode === 'snap' && (
             <>
               <h2 className="mb-3 text-sm font-medium text-gray-700">Take or upload a photo of your meal</h2>
               <form onSubmit={handlePhotoSubmit} className="space-y-3">
                 {photoPreviewUrl ? (
                   <div className="relative">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={photoPreviewUrl}
-                      alt="Meal preview"
-                      className="h-48 w-full rounded-lg object-cover"
-                    />
+                    <img src={photoPreviewUrl} alt="Meal preview" className="h-48 w-full rounded-lg object-cover" />
                     <button
                       type="button"
                       onClick={() => {
@@ -232,7 +255,7 @@ export default function Home() {
                       placeholder='Add details (optional) — e.g. "large portion", "no rice", "shared with someone"'
                       rows={2}
                       disabled={isPending}
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-500 focus:ring-1 focus:ring-gray-500 disabled:opacity-50 resize-none"
+                      className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-500 focus:ring-1 focus:ring-gray-500 disabled:opacity-50"
                     />
                     <button
                       type="submit"
@@ -247,19 +270,66 @@ export default function Home() {
             </>
           )}
 
+          {/* ── Multiple items ── */}
+          {mode === 'multi' && (
+            <>
+              <h2 className="mb-3 text-sm font-medium text-gray-700">List each component of your meal</h2>
+              <form onSubmit={handleMultiSubmit} className="space-y-2">
+                {multiItems.map((val, idx) => (
+                  <div key={idx} className="flex gap-2">
+                    <input
+                      type="text"
+                      value={val}
+                      onChange={(e) => {
+                        const next = [...multiItems]
+                        next[idx] = e.target.value
+                        setMultiItems(next)
+                      }}
+                      placeholder={idx === 0 ? 'e.g. 200g sliced beef' : idx === 1 ? 'e.g. 1 bowl beehoon' : 'e.g. handful of vegetables'}
+                      disabled={isPending}
+                      className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-500 focus:ring-1 focus:ring-gray-500 disabled:opacity-50"
+                    />
+                    {multiItems.length > 2 && (
+                      <button
+                        type="button"
+                        onClick={() => setMultiItems(multiItems.filter((_, i) => i !== idx))}
+                        disabled={isPending}
+                        className="shrink-0 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-400 hover:bg-gray-50 hover:text-gray-600 disabled:opacity-50"
+                        aria-label="Remove item"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setMultiItems([...multiItems, ''])}
+                  disabled={isPending || multiItems.length >= 10}
+                  className="mt-1 text-sm text-gray-500 hover:text-gray-700 disabled:opacity-40"
+                >
+                  + Add another item
+                </button>
+                <button
+                  type="submit"
+                  disabled={isPending || !hasMultiInput}
+                  className="w-full rounded-lg bg-gray-900 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50"
+                >
+                  {isPending ? 'Estimating…' : 'Log meal'}
+                </button>
+              </form>
+            </>
+          )}
+
           {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
         </div>
 
-        {/* Confirmation card */}
+        {/* Single-item confirmation card */}
         {result && (
           <div className="rounded-xl border border-green-200 bg-green-50 p-5 shadow-sm">
             {resultPhotoUrl && (
               // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={resultPhotoUrl}
-                alt="Logged meal"
-                className="mb-3 h-36 w-full rounded-lg object-cover"
-              />
+              <img src={resultPhotoUrl} alt="Logged meal" className="mb-3 h-36 w-full rounded-lg object-cover" />
             )}
             <div className="mb-3 flex items-start justify-between">
               <div>
@@ -287,6 +357,50 @@ export default function Home() {
           </div>
         )}
 
+        {/* Multi-item confirmation card */}
+        {multiResult && (
+          <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-5 shadow-sm">
+            <p className="mb-3 text-sm font-medium text-gray-700">Meal logged — {multiResult.items.length} items</p>
+            <ul className="space-y-3">
+              {multiResult.items.map((item, idx) => (
+                <li key={idx} className="rounded-lg bg-white px-3 py-2.5 shadow-sm">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-gray-900">{item.name}</p>
+                      <p className="text-xs text-gray-400">{item.input}</p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className="text-sm font-semibold text-gray-900">{item.calories} kcal</p>
+                      <span className={`rounded-full px-1.5 py-0.5 text-xs font-medium ${sourceBadge(item.source).cls}`}>
+                        {sourceBadge(item.source).label}
+                      </span>
+                    </div>
+                  </div>
+                  <p className="mt-1 text-xs text-gray-400">
+                    P {item.protein_g}g · C {item.carbs_g}g · F {item.fat_g}g
+                  </p>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-4 border-t border-indigo-200 pt-3">
+              <p className="text-3xl font-bold text-gray-900">
+                {multiResult.total_calories} <span className="text-base font-normal text-gray-500">kcal total</span>
+              </p>
+              <div className="mt-1 flex gap-4 text-sm text-gray-600">
+                <span>Protein <strong>{multiResult.total_protein_g}g</strong></span>
+                <span>Carbs <strong>{multiResult.total_carbs_g}g</strong></span>
+                <span>Fat <strong>{multiResult.total_fat_g}g</strong></span>
+              </div>
+            </div>
+            <button
+              onClick={() => setMultiResult(null)}
+              className="mt-3 text-xs text-gray-400 hover:text-gray-600 underline underline-offset-2"
+            >
+              Log another
+            </button>
+          </div>
+        )}
+
         {/* Today's meals */}
         {meals.length > 0 && (
           <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
@@ -297,11 +411,16 @@ export default function Home() {
             <ul className="space-y-2">
               {meals.map((meal) => {
                 const badge = sourceBadge(meal.source)
+                const shortLabel =
+                  meal.source === 'local_db' ? 'DB'
+                  : meal.source === 'ai_photo_estimate' ? 'Photo'
+                  : meal.source === 'multi_item' ? 'Multi'
+                  : 'AI'
                 return (
                   <li key={meal.id} className="flex items-center justify-between text-sm">
                     <div className="flex items-center gap-2 min-w-0">
                       <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-xs font-medium ${badge.cls}`}>
-                        {meal.source === 'local_db' ? 'DB' : meal.source === 'ai_photo_estimate' ? 'Photo' : 'AI'}
+                        {shortLabel}
                       </span>
                       <span className="truncate text-gray-800">{meal.name ?? meal.description}</span>
                     </div>
