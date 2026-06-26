@@ -21,6 +21,7 @@ export default function Home() {
   // Photo mode state
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null)
+  const [photoDetails, setPhotoDetails] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Shared state
@@ -49,6 +50,7 @@ export default function Home() {
     if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl)
     setPhotoFile(null)
     setPhotoPreviewUrl(null)
+    setPhotoDetails('')
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
@@ -91,19 +93,21 @@ export default function Home() {
     const capturedUrl = photoPreviewUrl
 
     startTransition(async () => {
-      try {
-        const fd = new FormData()
-        fd.append('image', photoFile)
-        const r = await logMealFromPhoto(fd)
-        setResult(r)
-        setResultPhotoUrl(capturedUrl)
-        setPhotoFile(null)
-        setPhotoPreviewUrl(null)
-        if (fileInputRef.current) fileInputRef.current.value = ''
-        setMeals(await getTodayMeals())
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Something went wrong')
+      const fd = new FormData()
+      fd.append('image', photoFile)
+      fd.append('details', photoDetails)
+      const r = await logMealFromPhoto(fd)
+      if (!r.ok) {
+        setError(r.error)
+        return
       }
+      setResult(r.data)
+      setResultPhotoUrl(capturedUrl)
+      setPhotoFile(null)
+      setPhotoPreviewUrl(null)
+      setPhotoDetails('')
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      setMeals(await getTodayMeals())
     })
   }
 
@@ -214,7 +218,6 @@ export default function Home() {
                       ref={fileInputRef}
                       type="file"
                       accept="image/*"
-                      capture="environment"
                       className="sr-only"
                       onChange={handleFileChange}
                       disabled={isPending}
@@ -222,13 +225,23 @@ export default function Home() {
                   </label>
                 )}
                 {photoPreviewUrl && (
-                  <button
-                    type="submit"
-                    disabled={isPending}
-                    className="w-full rounded-lg bg-gray-900 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50"
-                  >
-                    {isPending ? 'Identifying…' : 'Log this meal'}
-                  </button>
+                  <>
+                    <textarea
+                      value={photoDetails}
+                      onChange={(e) => setPhotoDetails(e.target.value)}
+                      placeholder='Add details (optional) — e.g. "large portion", "no rice", "shared with someone"'
+                      rows={2}
+                      disabled={isPending}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-500 focus:ring-1 focus:ring-gray-500 disabled:opacity-50 resize-none"
+                    />
+                    <button
+                      type="submit"
+                      disabled={isPending}
+                      className="w-full rounded-lg bg-gray-900 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50"
+                    >
+                      {isPending ? 'Identifying…' : 'Log this meal'}
+                    </button>
+                  </>
                 )}
               </form>
             </>
