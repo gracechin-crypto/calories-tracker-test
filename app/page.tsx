@@ -1,20 +1,26 @@
 'use client'
 
 import { useState, useTransition, useEffect, useRef } from 'react'
+import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { logout } from '@/app/actions/auth'
 import { logMeal, getTodayMeals, type LogMealResult, type TodayMeal } from '@/app/actions/log-meal'
 import { logMealFromPhoto } from '@/app/actions/log-meal-photo'
 import { logMealMulti, type MultiLogResult } from '@/app/actions/log-meal-multi'
+import { lookupBarcode, logBarcodeProduct, type BarcodeProduct } from '@/app/actions/barcode-lookup'
+import { deleteMeal, updateMeal } from '@/app/actions/meal-edit'
+
+const BarcodeScanner = dynamic(() => import('@/app/components/BarcodeScanner'), { ssr: false })
 
 function sourceBadge(source: string) {
   if (source === 'local_db')          return { label: 'Database',    cls: 'bg-green-100 text-green-700' }
   if (source === 'ai_photo_estimate') return { label: 'Photo',       cls: 'bg-purple-100 text-purple-700' }
   if (source === 'multi_item')        return { label: 'Multi-item',  cls: 'bg-indigo-100 text-indigo-700' }
+  if (source === 'barcode_scan')      return { label: 'Barcode',     cls: 'bg-orange-100 text-orange-700' }
   return                                     { label: 'AI estimate', cls: 'bg-blue-100 text-blue-700' }
 }
 
-type Mode = 'type' | 'snap' | 'multi'
+type Mode = 'type' | 'snap' | 'multi' | 'scan'
 
 export default function Home() {
   const [mode, setMode] = useState<Mode>('type')
@@ -32,12 +38,21 @@ export default function Home() {
   const [multiItems, setMultiItems] = useState<string[]>(['', ''])
   const [multiResult, setMultiResult] = useState<(MultiLogResult & { ok: true }) | null>(null)
 
+  // Scan mode
+  const [scannedProduct, setScannedProduct] = useState<BarcodeProduct | null>(null)
+  const [barcodeQuantity, setBarcodeQuantity] = useState(1)
+
   // Shared
   const [result, setResult] = useState<LogMealResult | null>(null)
   const [resultPhotoUrl, setResultPhotoUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [meals, setMeals] = useState<TodayMeal[]>([])
   const [isPending, startTransition] = useTransition()
+
+  // Edit/delete state
+  const [deletingMealId, setDeletingMealId] = useState<string | null>(null)
+  const [editingMealId, setEditingMealId] = useState<string | null>(null)
+  const [editDraft, setEditDraft] = useState<{ calories: number; protein_g: number; carbs_g: number; fat_g: number } | null>(null)
 
   useEffect(() => {
     getTodayMeals().then(setMeals)
@@ -55,6 +70,8 @@ export default function Home() {
     setResult(null)
     setResultPhotoUrl(null)
     setMultiResult(null)
+    setScannedProduct(null)
+    setBarcodeQuantity(1)
     if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl)
     setPhotoFile(null)
     setPhotoPreviewUrl(null)
@@ -142,6 +159,74 @@ export default function Home() {
     })
   }
 
+  function handleBarcodeScan(code: string) {
+    setError(null)
+    startTransition(async () => {
+      const r = await lookupBarcode(code)
+      if (!r.ok) {
+        setError(r.error)
+        return
+      }
+      setScannedProduct(r.product)
+      setBarcodeQuantity(1)
+    })
+  }
+
+  const handleLogBarcode = () => {
+    if (!scannedProduct) return
+    setError(null)
+    startTransition(async () => {
+      const r = await logBarcodeProduct(scannedProduct, barcodeQuantity)
+      if (!r.ok) {
+        setError(r.error)
+        return
+      }
+      setResult({
+        name: scannedProduct.name,
+        calories: Math.round(scannedProduct.calories_per_serving * barcodeQuantity),
+        protein_g: Math.round(scannedProduct.protein_per_serving * barcodeQuantity * 10) / 10,
+        carbs_g: Math.round(scannedProduct.carbs_per_serving * barcodeQuantity * 10) / 10,
+        fat_g: Math.round(scannedProduct.fat_per_serving * barcodeQuantity * 10) / 10,
+        serving_description: scannedProduct.serving_description,
+        source: 'barcode_scan',
+        meal_id: r.meal_id,
+      })
+      setScannedProduct(null)
+      setMeals(await getTodayMeals())
+    })
+  }
+
+  function handleStartEdit(meal: TodayMeal) {
+    setEditingMealId(meal.id)
+    setEditDraft({ calories: meal.calories, protein_g: meal.protein_g, carbs_g: meal.carbs_g, fat_g: meal.fat_g })
+    setDeletingMealId(null)
+  }
+
+  function handleCancelEdit() {
+    setEditingMealId(null)
+    setEditDraft(null)
+  }
+
+  function handleSaveEdit(id: string) {
+    if (!editDraft) return
+    startTransition(async () => {
+      const r = await updateMeal(id, editDraft.calories, editDraft.protein_g, editDraft.carbs_g, editDraft.fat_g)
+      if (!r.ok) { setError(r.error); return }
+      setEditingMealId(null)
+      setEditDraft(null)
+      setMeals(await getTodayMeals())
+    })
+  }
+
+  function handleDelete(id: string) {
+    startTransition(async () => {
+      const r = await deleteMeal(id)
+      if (!r.ok) { setError(r.error); return }
+      setDeletingMealId(null)
+      setMeals(await getTodayMeals())
+    })
+  }
+
   const totalCalories = meals.reduce((sum, m) => sum + m.calories, 0)
 
   return (
@@ -172,7 +257,7 @@ export default function Home() {
         <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
           {/* Mode tabs */}
           <div className="mb-4 flex gap-1 rounded-lg bg-gray-100 p-1">
-            {(['type', 'snap', 'multi'] as const).map((m) => (
+            {(['type', 'snap', 'multi', 'scan'] as const).map((m) => (
               <button
                 key={m}
                 type="button"
@@ -181,7 +266,7 @@ export default function Home() {
                   mode === m ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
                 }`}
               >
-                {m === 'type' ? 'Type it' : m === 'snap' ? 'Snap it' : 'Multiple'}
+                {m === 'type' ? 'Type it' : m === 'snap' ? 'Snap it' : m === 'multi' ? 'Multiple' : 'Scan'}
               </button>
             ))}
           </div>
@@ -323,6 +408,61 @@ export default function Home() {
             </>
           )}
 
+          {/* ── Scan barcode ── */}
+          {mode === 'scan' && (
+            <>
+              <h2 className="mb-3 text-sm font-medium text-gray-700">Scan a product barcode</h2>
+              {scannedProduct ? (
+                <div className="space-y-4">
+                  <div className="rounded-lg bg-gray-50 p-4">
+                    <p className="font-medium text-gray-900">{scannedProduct.name}</p>
+                    <p className="mt-1 text-xs text-gray-500">{scannedProduct.serving_description} per serving</p>
+                    <div className="mt-2 flex gap-3 text-sm text-gray-600">
+                      <span>{scannedProduct.calories_per_serving} kcal</span>
+                      <span>P {scannedProduct.protein_per_serving}g</span>
+                      <span>C {scannedProduct.carbs_per_serving}g</span>
+                      <span>F {scannedProduct.fat_per_serving}g</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <label className="text-sm text-gray-700">Servings:</label>
+                    <input
+                      type="number"
+                      min="0.1"
+                      step="0.1"
+                      value={barcodeQuantity}
+                      onChange={(e) => setBarcodeQuantity(Math.max(0.1, parseFloat(e.target.value) || 1))}
+                      className="w-24 rounded-lg border border-gray-300 px-3 py-1.5 text-sm outline-none focus:border-gray-500 focus:ring-1 focus:ring-gray-500"
+                    />
+                    <span className="text-sm text-gray-500">
+                      = {Math.round(scannedProduct.calories_per_serving * barcodeQuantity)} kcal
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={handleLogBarcode}
+                      disabled={isPending}
+                      className="flex-1 rounded-lg bg-gray-900 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50"
+                    >
+                      {isPending ? 'Logging…' : 'Log meal'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setScannedProduct(null)}
+                      disabled={isPending}
+                      className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      Scan another
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <BarcodeScanner onScan={handleBarcodeScan} onCancel={() => switchMode('type')} />
+              )}
+            </>
+          )}
+
           {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
         </div>
 
@@ -417,7 +557,74 @@ export default function Home() {
                   meal.source === 'local_db' ? 'DB'
                   : meal.source === 'ai_photo_estimate' ? 'Photo'
                   : meal.source === 'multi_item' ? 'Multi'
+                  : meal.source === 'barcode_scan' ? 'Scan'
                   : 'AI'
+
+                if (deletingMealId === meal.id) {
+                  return (
+                    <li key={meal.id} className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm">
+                      <p className="mb-2 text-red-700">Delete this entry?</p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleDelete(meal.id)}
+                          disabled={isPending}
+                          className="rounded-md bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                        >
+                          Yes, delete
+                        </button>
+                        <button
+                          onClick={() => setDeletingMealId(null)}
+                          disabled={isPending}
+                          className="rounded-md border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </li>
+                  )
+                }
+
+                if (editingMealId === meal.id && editDraft) {
+                  return (
+                    <li key={meal.id} className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-3 text-sm space-y-2">
+                      <p className="text-xs font-medium text-gray-700 truncate">{meal.name ?? meal.description}</p>
+                      <div className="grid grid-cols-4 gap-2">
+                        {(['calories', 'protein_g', 'carbs_g', 'fat_g'] as const).map((field) => (
+                          <div key={field} className="flex flex-col gap-0.5">
+                            <label className="text-xs text-gray-500">
+                              {field === 'calories' ? 'kcal' : field === 'protein_g' ? 'Protein' : field === 'carbs_g' ? 'Carbs' : 'Fat'}
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              step={field === 'calories' ? '1' : '0.1'}
+                              value={editDraft[field]}
+                              onChange={(e) => setEditDraft({ ...editDraft, [field]: parseFloat(e.target.value) || 0 })}
+                              className="w-full rounded border border-gray-300 px-2 py-1 text-xs outline-none focus:border-gray-500"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleSaveEdit(meal.id)}
+                          disabled={isPending}
+                          className="rounded-md bg-gray-900 px-3 py-1 text-xs font-medium text-white hover:bg-gray-700 disabled:opacity-50"
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={handleCancelEdit}
+                          disabled={isPending}
+                          className="rounded-md border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </li>
+                  )
+                }
+
                 return (
                   <li key={meal.id} className="flex items-center justify-between text-sm">
                     <div className="flex items-center gap-2 min-w-0">
@@ -426,7 +633,29 @@ export default function Home() {
                       </span>
                       <span className="truncate text-gray-800">{meal.name ?? meal.description}</span>
                     </div>
-                    <span className="ml-3 shrink-0 font-medium text-gray-900">{meal.calories} kcal</span>
+                    <div className="ml-3 flex shrink-0 items-center gap-2">
+                      <span className="font-medium text-gray-900">{meal.calories} kcal</span>
+                      <button
+                        onClick={() => handleStartEdit(meal)}
+                        disabled={isPending}
+                        title="Edit"
+                        className="text-gray-400 hover:text-gray-600 disabled:opacity-40"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 112.828 2.828L11.828 15.828a4 4 0 01-1.414.586l-3 .75.75-3a4 4 0 01.586-1.414z" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => { setDeletingMealId(meal.id); setEditingMealId(null) }}
+                        disabled={isPending}
+                        title="Delete"
+                        className="text-gray-400 hover:text-red-500 disabled:opacity-40"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
                   </li>
                 )
               })}

@@ -10,7 +10,7 @@ export type LogMealResult = {
   carbs_g: number
   fat_g: number
   serving_description: string
-  source: 'local_db' | 'ai_estimate' | 'ai_photo_estimate'
+  source: 'local_db' | 'ai_estimate' | 'ai_photo_estimate' | 'barcode_scan'
   meal_id: string
 }
 
