@@ -15,13 +15,13 @@ export type MultiLogResult =
     }
   | { ok: false; error: string }
 
-export async function logMealMulti(descriptions: string[]): Promise<MultiLogResult> {
+export async function logMealMulti(formData: FormData): Promise<MultiLogResult> {
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { ok: false, error: 'Not authenticated' }
 
-    const nonEmpty = descriptions.map((d) => d.trim()).filter(Boolean)
+    const nonEmpty = (formData.getAll('item') as string[]).map((d) => d.trim()).filter(Boolean)
     if (nonEmpty.length === 0) return { ok: false, error: 'Add at least one item' }
 
     const resolved = await Promise.all(nonEmpty.map((d) => resolveItem(d, supabase)))

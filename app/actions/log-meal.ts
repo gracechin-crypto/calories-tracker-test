@@ -108,9 +108,17 @@ export async function resolveItem(
     }
   }
 
-  // Step 2: keyword-by-keyword
+  // Step 2: keyword-by-keyword (skip preparation/quantity/descriptive words that
+  // could match the wrong dish category, e.g. "sliced" → "Sliced Fish Soup")
+  const SKIP_KEYWORDS = new Set([
+    'sliced', 'fried', 'grilled', 'steamed', 'roasted', 'baked', 'boiled',
+    'braised', 'stewed', 'smoked', 'raw', 'fresh', 'dried', 'cooked',
+    'mixed', 'whole', 'boneless', 'skinless', 'crispy', 'crunchy',
+    'handful', 'bowl', 'plate', 'cup', 'piece', 'pieces', 'bits', 'portion',
+    'large', 'small', 'big', 'medium', 'hot', 'cold', 'warm',
+  ])
   if (!matchedItem && cleaned) {
-    const keywords = cleaned.split(' ').filter((w) => w.length >= 3)
+    const keywords = cleaned.split(' ').filter((w) => w.length >= 3 && !SKIP_KEYWORDS.has(w))
     for (const keyword of keywords) {
       const { data: kwMatches } = await supabase
         .from('food_items')

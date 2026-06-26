@@ -129,7 +129,9 @@ export default function Home() {
     setMultiResult(null)
 
     startTransition(async () => {
-      const r = await logMealMulti(multiItems)
+      const fd = new FormData()
+      multiItems.filter((v) => v.trim()).forEach((v) => fd.append('item', v.trim()))
+      const r = await logMealMulti(fd)
       if (!r.ok) {
         setError(r.error)
         return
