@@ -77,7 +77,7 @@ export default async function DashboardPage() {
               const over = goalCal > 0 && day.calories > goalCal
               const isToday = day.date === today.date
               return (
-                <div key={day.date} className="flex flex-1 flex-col items-center gap-1">
+                <div key={day.date} className="flex flex-1 flex-col items-center gap-1 h-full">
                   <div className="flex w-full flex-1 items-end">
                     <div
                       className={`w-full rounded-t transition-all ${
