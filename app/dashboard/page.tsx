@@ -3,6 +3,7 @@ import { getDashboardData } from '@/app/actions/dashboard'
 import { createClient } from '@/lib/supabase/server'
 import GoalForm from './GoalForm'
 import CoachCard from '@/app/components/CoachCard'
+import WeeklyInsights, { type WeeklyData } from '@/app/components/WeeklyInsights'
 
 function fmt(n: number) { return Math.round(n).toLocaleString() }
 
@@ -26,7 +27,58 @@ export default async function DashboardPage() {
 
   const daysWithData = history.filter((d) => d.calories > 0).length
 
+  // Fetch individual meal names for dish-frequency stat (separate from aggregated history)
+  const weekQueryStart = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString()
+  const { data: mealNameRows } = user
+    ? await supabase
+        .from('meals')
+        .select('name')
+        .eq('user_id', user.id)
+        .gte('logged_at', weekQueryStart)
+        .not('name', 'is', null)
+    : { data: null }
+
+  const nameCounts: Record<string, number> = {}
+  for (const row of mealNameRows ?? []) {
+    if (row.name) nameCounts[row.name] = (nameCounts[row.name] ?? 0) + 1
+  }
+  const topFoodEntry = Object.entries(nameCounts).sort((a, b) => b[1] - a[1])[0] ?? null
+
+  // Compute weekly averages from days that have data
+  const trackedDays = history.filter((d) => d.calories > 0)
+  const avgCalories = trackedDays.length > 0
+    ? Math.round(trackedDays.reduce((s, d) => s + d.calories, 0) / trackedDays.length)
+    : null
+  const avgProtein = trackedDays.length > 0
+    ? Math.round(trackedDays.reduce((s, d) => s + d.protein_g, 0) / trackedDays.length * 10) / 10
+    : null
+  const avgCarbs = trackedDays.length > 0
+    ? Math.round(trackedDays.reduce((s, d) => s + d.carbs_g, 0) / trackedDays.length * 10) / 10
+    : null
+  const avgFat = trackedDays.length > 0
+    ? Math.round(trackedDays.reduce((s, d) => s + d.fat_g, 0) / trackedDays.length * 10) / 10
+    : null
+
   const goalCal = goal?.calorie_target ?? 0
+  const calVsGoalPct = goalCal > 0 && avgCalories != null
+    ? Math.round(((avgCalories - goalCal) / goalCal) * 100)
+    : null
+  const daysWithinGoal = goalCal > 0
+    ? trackedDays.filter((d) => d.calories <= goalCal).length
+    : null
+
+  const weeklyData: WeeklyData = {
+    daysTracked: daysWithData,
+    avgCalories,
+    calVsGoalPct,
+    avgProtein,
+    avgCarbs,
+    avgFat,
+    daysWithinGoal,
+    trackedDaysCount: trackedDays.length,
+    topFood: topFoodEntry ? { name: topFoodEntry[0], count: topFoodEntry[1] } : null,
+    goal,
+  }
   const todayPct = goalCal > 0 ? Math.min((today.calories / goalCal) * 100, 100) : 0
   const todayOver = goalCal > 0 && today.calories > goalCal
 
@@ -147,6 +199,9 @@ export default async function DashboardPage() {
 
         {/* Coach's notes */}
         <CoachCard initialContent={coachRow?.content ?? null} daysWithData={daysWithData} />
+
+        {/* Weekly insights */}
+        <WeeklyInsights data={weeklyData} />
 
       </div>
     </main>
