@@ -9,6 +9,7 @@ import { logMealFromPhoto } from '@/app/actions/log-meal-photo'
 import { logMealMulti, type MultiLogResult } from '@/app/actions/log-meal-multi'
 import { lookupBarcode, logBarcodeProduct, type BarcodeProduct } from '@/app/actions/barcode-lookup'
 import { deleteMeal, updateMeal } from '@/app/actions/meal-edit'
+import BarcodeScannerErrorBoundary from '@/app/components/BarcodeScannerErrorBoundary'
 
 const BarcodeScanner = dynamic(() => import('@/app/components/BarcodeScanner'), { ssr: false })
 
@@ -41,6 +42,7 @@ export default function Home() {
   // Scan mode
   const [scannedProduct, setScannedProduct] = useState<BarcodeProduct | null>(null)
   const [barcodeQuantity, setBarcodeQuantity] = useState(1)
+  const [cameraError, setCameraError] = useState<string | null>(null)
 
   // Shared
   const [result, setResult] = useState<LogMealResult | null>(null)
@@ -72,6 +74,7 @@ export default function Home() {
     setMultiResult(null)
     setScannedProduct(null)
     setBarcodeQuantity(1)
+    setCameraError(null)
     if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl)
     setPhotoFile(null)
     setPhotoPreviewUrl(null)
@@ -449,7 +452,7 @@ export default function Home() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setScannedProduct(null)}
+                      onClick={() => { setScannedProduct(null); setCameraError(null) }}
                       disabled={isPending}
                       className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50"
                     >
@@ -457,8 +460,34 @@ export default function Home() {
                     </button>
                   </div>
                 </div>
+              ) : cameraError ? (
+                <div className="space-y-3">
+                  <p className="text-sm text-red-600">{cameraError}</p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCameraError(null)}
+                      className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50"
+                    >
+                      Try again
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => switchMode('type')}
+                      className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50"
+                    >
+                      Type it instead
+                    </button>
+                  </div>
+                </div>
               ) : (
-                <BarcodeScanner onScan={handleBarcodeScan} onCancel={() => switchMode('type')} />
+                <BarcodeScannerErrorBoundary onFallback={() => switchMode('type')}>
+                  <BarcodeScanner
+                    onScan={handleBarcodeScan}
+                    onCancel={() => switchMode('type')}
+                    onError={setCameraError}
+                  />
+                </BarcodeScannerErrorBoundary>
               )}
             </>
           )}

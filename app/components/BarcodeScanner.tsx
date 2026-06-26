@@ -5,17 +5,20 @@ import { useEffect, useRef } from 'react'
 interface Props {
   onScan: (barcode: string) => void
   onCancel: () => void
+  onError?: (msg: string) => void
 }
 
-export default function BarcodeScanner({ onScan, onCancel }: Props) {
+export default function BarcodeScanner({ onScan, onCancel, onError }: Props) {
   const scannerRef = useRef<{ stop: () => Promise<void> } | null>(null)
   const mountedRef = useRef(true)
+  const startedRef = useRef(false)
 
   useEffect(() => {
     mountedRef.current = true
-    let started = false
 
     async function startScanner() {
+      if (!document.getElementById('barcode-reader')) return
+
       const { Html5Qrcode } = await import('html5-qrcode')
       if (!mountedRef.current) return
 
@@ -28,14 +31,33 @@ export default function BarcodeScanner({ onScan, onCancel }: Props) {
           { fps: 10, qrbox: { width: 250, height: 150 } },
           (decodedText: string) => {
             if (!mountedRef.current) return
-            scanner.stop().catch(() => {})
-            onScan(decodedText)
+            try {
+              startedRef.current = false
+              scanner.stop().catch(() => {})
+              onScan(decodedText)
+            } catch {
+              // onScan errors handled upstream
+            }
           },
-          () => {},
+          () => {
+            // per-frame "no QR code found" — normal, ignore
+          },
         )
-        started = true
-      } catch {
-        // camera permission denied or not available
+        startedRef.current = true
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        const friendly =
+          msg.includes('NotAllowed') || msg.includes('Permission')
+            ? 'Camera permission denied. Please allow camera access and try again.'
+            : msg.includes('NotFound') || msg.includes('Requested device not found')
+            ? 'No camera found on this device.'
+            : msg.includes('NotReadable') || msg.includes('Could not start video source')
+            ? 'Camera is in use by another app. Please close it and try again.'
+            : 'Could not start camera. Try again or use manual entry.'
+        if (mountedRef.current) {
+          if (onError) onError(friendly)
+          else onCancel()
+        }
       }
     }
 
@@ -43,7 +65,8 @@ export default function BarcodeScanner({ onScan, onCancel }: Props) {
 
     return () => {
       mountedRef.current = false
-      if (scannerRef.current && started) {
+      if (scannerRef.current && startedRef.current) {
+        startedRef.current = false
         scannerRef.current.stop().catch(() => {})
       }
     }
