@@ -1,6 +1,8 @@
 import Link from 'next/link'
 import { getDashboardData } from '@/app/actions/dashboard'
+import { createClient } from '@/lib/supabase/server'
 import GoalForm from './GoalForm'
+import CoachCard from '@/app/components/CoachCard'
 
 function fmt(n: number) { return Math.round(n).toLocaleString() }
 
@@ -8,6 +10,21 @@ const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 export default async function DashboardPage() {
   const { goal, today, history } = await getDashboardData()
+
+  // Load today's cached coaching notes (if any) for initial render
+  const todaySGT = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  const { data: coachRow } = user
+    ? await supabase
+        .from('coaching_notes')
+        .select('content')
+        .eq('user_id', user.id)
+        .eq('date', todaySGT)
+        .maybeSingle()
+    : { data: null }
+
+  const daysWithData = history.filter((d) => d.calories > 0).length
 
   const goalCal = goal?.calorie_target ?? 0
   const todayPct = goalCal > 0 ? Math.min((today.calories / goalCal) * 100, 100) : 0
@@ -127,6 +144,9 @@ export default async function DashboardPage() {
             </p>
           )}
         </div>
+
+        {/* Coach's notes */}
+        <CoachCard initialContent={coachRow?.content ?? null} daysWithData={daysWithData} />
 
       </div>
     </main>
