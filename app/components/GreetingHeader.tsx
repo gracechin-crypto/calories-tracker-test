@@ -19,6 +19,7 @@ function greeting(): string {
 const NAV = [
   { href: '/', label: 'Home' },
   { href: '/dashboard', label: 'Dashboard' },
+  { href: '/settings', label: 'Settings' },
 ]
 
 export default function GreetingHeader({ name = 'Grace', avatarUrl }: Props) {

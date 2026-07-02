@@ -19,7 +19,7 @@ export default async function DashboardPage() {
   const todaySGT = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10)
   const weekQueryStart = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString()
 
-  const [{ goal, today, history }, { data: coachRow }, { data: mealNameRows }] = await Promise.all([
+  const [{ goal, today, history }, { data: coachRow }, { data: mealNameRows }, { data: profileRow }] = await Promise.all([
     getDashboardData(supabase, user.id),
     supabase
       .from('coaching_notes')
@@ -33,6 +33,11 @@ export default async function DashboardPage() {
       .eq('user_id', user.id)
       .gte('logged_at', weekQueryStart)
       .not('name', 'is', null),
+    supabase
+      .from('profiles')
+      .select('first_name, avatar_url')
+      .eq('user_id', user.id)
+      .maybeSingle(),
   ])
 
   const daysWithData = history.filter((d) => d.calories > 0).length
@@ -89,7 +94,7 @@ export default async function DashboardPage() {
     <main className="min-h-screen bg-bg p-4">
       <div className="mx-auto max-w-lg space-y-4">
 
-        <GreetingHeader />
+        <GreetingHeader name={profileRow?.first_name ?? 'Grace'} avatarUrl={profileRow?.avatar_url ?? null} />
 
         {/* Goal section */}
         <div className="rounded-card bg-white p-5 shadow-card">

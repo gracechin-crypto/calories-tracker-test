@@ -110,6 +110,8 @@ export default function Home() {
   const [meals, setMeals] = useState<TodayMeal[]>([])
   const [goal, setGoal] = useState<Goal | null>(null)
   const [coachLine, setCoachLine] = useState<string | null>(null)
+  const [firstName, setFirstName] = useState<string | null>(null)
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
@@ -120,7 +122,12 @@ export default function Home() {
 
   useEffect(() => {
     getTodayMeals().then(setMeals)
-    getHomeData().then((d) => { setGoal(d.goal); setCoachLine(d.coachLine) })
+    getHomeData().then((d) => {
+      setGoal(d.goal)
+      setCoachLine(d.coachLine)
+      setFirstName(d.firstName)
+      setAvatarUrl(d.avatarUrl)
+    })
   }, [])
 
   useEffect(() => {
@@ -326,7 +333,7 @@ export default function Home() {
     <main className="min-h-screen bg-bg p-4">
       <div className="mx-auto max-w-lg space-y-4">
 
-        <GreetingHeader />
+        <GreetingHeader name={firstName ?? 'Grace'} avatarUrl={avatarUrl} />
 
         {/* Hero */}
         <HeroCard

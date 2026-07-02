@@ -112,6 +112,8 @@ export async function getDashboardData(
 export type HomeData = {
   goal: Goal | null
   coachLine: string | null // first bullet of today's cached coaching notes, if any
+  firstName: string | null
+  avatarUrl: string | null
 }
 
 // Lightweight fetch for the home hero card: goal + today's cached coaching line.
@@ -120,17 +122,22 @@ export async function getHomeData(): Promise<HomeData> {
   noStore()
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { goal: null, coachLine: null }
+  if (!user) return { goal: null, coachLine: null, firstName: null, avatarUrl: null }
 
   const todaySGT = toSGTDate(Date.now())
 
-  const [{ data: goalRow }, { data: noteRow }] = await Promise.all([
+  const [{ data: goalRow }, { data: noteRow }, { data: profileRow }] = await Promise.all([
     supabase.from('daily_goals').select('*').eq('user_id', user.id).maybeSingle(),
     supabase
       .from('coaching_notes')
       .select('content')
       .eq('user_id', user.id)
       .eq('date', todaySGT)
+      .maybeSingle(),
+    supabase
+      .from('profiles')
+      .select('first_name, avatar_url')
+      .eq('user_id', user.id)
       .maybeSingle(),
   ])
 
@@ -149,7 +156,12 @@ export async function getHomeData(): Promise<HomeData> {
     .find((l: string) => l.startsWith('•'))
     ?.replace(/^•\s*/, '') ?? null
 
-  return { goal, coachLine: firstBullet }
+  return {
+    goal,
+    coachLine: firstBullet,
+    firstName: profileRow?.first_name ?? null,
+    avatarUrl: profileRow?.avatar_url ?? null,
+  }
 }
 
 export async function saveGoal(
