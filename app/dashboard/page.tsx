@@ -5,6 +5,7 @@ import CoachCard from '@/app/components/CoachCard'
 import WeeklyInsights, { type WeeklyData } from '@/app/components/WeeklyInsights'
 import GreetingHeader from '@/app/components/GreetingHeader'
 import BottomNav from '@/app/components/BottomNav'
+import ActivityCard, { type HealthDay } from '@/app/components/ActivityCard'
 
 function fmt(n: number) { return Math.round(n).toLocaleString() }
 
@@ -19,7 +20,7 @@ export default async function DashboardPage() {
   const todaySGT = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10)
   const weekQueryStart = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString()
 
-  const [{ goal, today, history }, { data: coachRow }, { data: mealNameRows }, { data: profileRow }] = await Promise.all([
+  const [{ goal, today, history }, { data: coachRow }, { data: mealNameRows }, { data: profileRow }, { data: healthRow }] = await Promise.all([
     getDashboardData(supabase, user.id),
     supabase
       .from('coaching_notes')
@@ -37,6 +38,12 @@ export default async function DashboardPage() {
       .from('profiles')
       .select('first_name, avatar_url')
       .eq('user_id', user.id)
+      .maybeSingle(),
+    supabase
+      .from('health_days')
+      .select('steps, active_kcal, workouts')
+      .eq('user_id', user.id)
+      .eq('date', todaySGT)
       .maybeSingle(),
   ])
 
@@ -192,6 +199,9 @@ export default async function DashboardPage() {
             </p>
           )}
         </div>
+
+        {/* Activity (Apple Watch) */}
+        <ActivityCard health={(healthRow as HealthDay | null) ?? null} />
 
         {/* Coach's notes */}
         <CoachCard initialContent={coachRow?.content ?? null} daysWithData={daysWithData} />

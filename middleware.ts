@@ -36,8 +36,9 @@ export async function middleware(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   const { pathname } = request.nextUrl
 
-  // Public read-only share links: no auth, validated inside the route
-  if (pathname.startsWith('/share/')) {
+  // Public routes that validate access themselves: share links (token
+  // checked in the route) and health sync (bearer token checked in the route)
+  if (pathname.startsWith('/share/') || pathname === '/api/health-sync') {
     return response
   }
 
