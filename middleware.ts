@@ -36,6 +36,11 @@ export async function middleware(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   const { pathname } = request.nextUrl
 
+  // Public read-only share links: no auth, validated inside the route
+  if (pathname.startsWith('/share/')) {
+    return response
+  }
+
   if (!user && !PUBLIC_PATHS.includes(pathname)) {
     return NextResponse.redirect(new URL('/login', request.url))
   }

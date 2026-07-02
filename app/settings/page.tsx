@@ -6,6 +6,7 @@ import { getProfile, saveProfile } from '@/app/actions/profile'
 import GreetingHeader from '@/app/components/GreetingHeader'
 import BottomNav from '@/app/components/BottomNav'
 import Toast from '@/app/components/Toast'
+import ShareLinksCard from '@/app/components/ShareLinksCard'
 
 // Center-crop to square and resize to 256px, output JPEG blob
 async function resizeToSquare(file: File, size = 256): Promise<Blob> {
@@ -162,6 +163,8 @@ export default function SettingsPage() {
             </div>
           )}
         </div>
+
+        <ShareLinksCard />
 
         <BottomNav />
       </div>
