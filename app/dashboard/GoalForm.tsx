@@ -31,15 +31,15 @@ export default function GoalForm({ initialValues }: { initialValues?: Goal }) {
   if (!editing && initialValues) {
     return (
       <div className="flex items-center justify-between">
-        <div className="flex gap-6 text-sm text-gray-700">
-          <span><strong className="text-gray-900">{initialValues.calorie_target.toLocaleString()}</strong> kcal</span>
-          <span>P <strong>{initialValues.protein_target}g</strong></span>
-          <span>C <strong>{initialValues.carb_target}g</strong></span>
-          <span>F <strong>{initialValues.fat_target}g</strong></span>
+        <div className="tnum flex gap-6 text-sm font-medium text-sub">
+          <span><strong className="text-ink">{initialValues.calorie_target.toLocaleString()}</strong> kcal</span>
+          <span>P <strong className="text-ink">{initialValues.protein_target}g</strong></span>
+          <span>C <strong className="text-ink">{initialValues.carb_target}g</strong></span>
+          <span>F <strong className="text-ink">{initialValues.fat_target}g</strong></span>
         </div>
         <button
           onClick={() => setEditing(true)}
-          className="text-xs text-gray-400 hover:text-gray-600 underline underline-offset-2"
+          className="text-xs font-semibold text-green underline underline-offset-2 hover:text-ink"
         >
           Edit
         </button>
@@ -57,32 +57,32 @@ export default function GoalForm({ initialValues }: { initialValues?: Goal }) {
           { label: 'Fat (g)',         value: fat,      set: setFat,      min: 0   },
         ].map(({ label, value, set, min }) => (
           <div key={label} className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-gray-500">{label}</label>
+            <label className="text-xs font-semibold text-sub">{label}</label>
             <input
               type="number"
               required
               min={min}
               value={value}
               onChange={(e) => set(e.target.value)}
-              className="rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-500 focus:ring-1 focus:ring-gray-500"
+              className="tnum rounded-field bg-bg px-3 py-2 text-sm font-medium outline-none focus:ring-2 focus:ring-lime"
             />
           </div>
         ))}
       </div>
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm font-medium text-coral">{error}</p>}
       <div className="flex gap-2">
         <button
           type="submit"
           disabled={isPending}
-          className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50"
+          className="rounded-field bg-lime px-5 py-2 text-sm font-bold text-ink transition-colors hover:bg-lime-deep disabled:opacity-50"
         >
-          {isPending ? 'Saving…' : 'Save goal'}
+          {isPending ? 'Saving…' : 'Save changes'}
         </button>
         {initialValues && (
           <button
             type="button"
             onClick={() => setEditing(false)}
-            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+            className="rounded-field bg-bg px-5 py-2 text-sm font-semibold text-sub hover:text-ink"
           >
             Cancel
           </button>

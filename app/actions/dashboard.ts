@@ -109,6 +109,49 @@ export async function getDashboardData(
   return { goal, today, history }
 }
 
+export type HomeData = {
+  goal: Goal | null
+  coachLine: string | null // first bullet of today's cached coaching notes, if any
+}
+
+// Lightweight fetch for the home hero card: goal + today's cached coaching line.
+// Never calls the Claude API — the client falls back to a rule-based line.
+export async function getHomeData(): Promise<HomeData> {
+  noStore()
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { goal: null, coachLine: null }
+
+  const todaySGT = toSGTDate(Date.now())
+
+  const [{ data: goalRow }, { data: noteRow }] = await Promise.all([
+    supabase.from('daily_goals').select('*').eq('user_id', user.id).maybeSingle(),
+    supabase
+      .from('coaching_notes')
+      .select('content')
+      .eq('user_id', user.id)
+      .eq('date', todaySGT)
+      .maybeSingle(),
+  ])
+
+  const goal: Goal | null = goalRow
+    ? {
+        calorie_target: goalRow.calorie_target,
+        protein_target: Number(goalRow.protein_target),
+        carb_target: Number(goalRow.carb_target),
+        fat_target: Number(goalRow.fat_target),
+      }
+    : null
+
+  const firstBullet = noteRow?.content
+    ?.split('\n')
+    .map((l: string) => l.trim())
+    .find((l: string) => l.startsWith('•'))
+    ?.replace(/^•\s*/, '') ?? null
+
+  return { goal, coachLine: firstBullet }
+}
+
 export async function saveGoal(
   calorie_target: number,
   protein_target: number,

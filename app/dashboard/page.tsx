@@ -1,9 +1,10 @@
-import Link from 'next/link'
 import { getDashboardData } from '@/app/actions/dashboard'
 import { createClient } from '@/lib/supabase/server'
 import GoalForm from './GoalForm'
 import CoachCard from '@/app/components/CoachCard'
 import WeeklyInsights, { type WeeklyData } from '@/app/components/WeeklyInsights'
+import GreetingHeader from '@/app/components/GreetingHeader'
+import BottomNav from '@/app/components/BottomNav'
 
 function fmt(n: number) { return Math.round(n).toLocaleString() }
 
@@ -77,6 +78,7 @@ export default async function DashboardPage() {
     topFood: topFoodEntry ? { name: topFoodEntry[0], count: topFoodEntry[1] } : null,
     goal,
   }
+
   const todayPct = goalCal > 0 ? Math.min((today.calories / goalCal) * 100, 100) : 0
   const todayOver = goalCal > 0 && today.calories > goalCal
 
@@ -84,76 +86,67 @@ export default async function DashboardPage() {
   const maxScale = Math.max(goalCal, ...history.map((d) => d.calories), 1)
 
   return (
-    <main className="min-h-screen bg-gray-50 p-4">
-      <div className="mx-auto max-w-lg space-y-6">
+    <main className="min-h-screen bg-bg p-4">
+      <div className="mx-auto max-w-lg space-y-4">
 
-        {/* Header */}
-        <div className="flex items-center justify-between pt-4">
-          <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-          <Link
-            href="/"
-            className="text-sm text-gray-500 hover:text-gray-700 underline underline-offset-2"
-          >
-            ← Log meals
-          </Link>
-        </div>
+        <GreetingHeader />
 
         {/* Goal section */}
-        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-          <h2 className="mb-3 text-sm font-medium text-gray-700">
+        <div className="rounded-card bg-white p-5 shadow-card">
+          <h2 className="mb-3 text-sm font-semibold text-ink">
             {goal ? 'Daily goal' : 'Set your daily calorie goal'}
           </h2>
           <GoalForm initialValues={goal ?? undefined} />
         </div>
 
         {/* Today's summary */}
-        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-          <h2 className="mb-3 text-sm font-medium text-gray-700">Today</h2>
+        <div className="rounded-card bg-white p-5 shadow-card">
+          <h2 className="mb-3 text-sm font-semibold text-ink">Today</h2>
           <div className="mb-3 flex items-baseline gap-1">
-            <span className="text-3xl font-bold text-gray-900">{fmt(today.calories)}</span>
+            <span className="tnum text-3xl font-extrabold text-ink">{fmt(today.calories)}</span>
             {goalCal > 0 && (
-              <span className="text-base text-gray-500">/ {fmt(goalCal)} kcal</span>
+              <span className="tnum text-base font-medium text-sub">/ {fmt(goalCal)} kcal</span>
             )}
-            {goalCal === 0 && <span className="text-base text-gray-500">kcal</span>}
+            {goalCal === 0 && <span className="text-base font-medium text-sub">kcal</span>}
           </div>
 
           {goalCal > 0 && (
-            <div className="mb-4 h-2.5 w-full overflow-hidden rounded-full bg-gray-100">
+            <div className="mb-4 h-2.5 w-full overflow-hidden rounded-pill bg-bg">
               <div
-                className={`h-full rounded-full transition-all ${todayOver ? 'bg-amber-400' : 'bg-emerald-400'}`}
+                className={`anim-bar-fill h-full rounded-pill ${todayOver ? 'bg-amber2' : 'bg-lime-deep'}`}
                 style={{ width: `${todayPct}%` }}
               />
             </div>
           )}
 
-          <div className="flex gap-6 text-sm text-gray-600">
-            <span>Protein <strong className="text-gray-900">{fmt(today.protein_g)}g</strong></span>
-            <span>Carbs <strong className="text-gray-900">{fmt(today.carbs_g)}g</strong></span>
-            <span>Fat <strong className="text-gray-900">{fmt(today.fat_g)}g</strong></span>
+          <div className="tnum flex gap-6 text-sm font-medium text-sub">
+            <span>Protein <strong className="text-ink">{fmt(today.protein_g)}g</strong></span>
+            <span>Carbs <strong className="text-ink">{fmt(today.carbs_g)}g</strong></span>
+            <span>Fat <strong className="text-ink">{fmt(today.fat_g)}g</strong></span>
           </div>
         </div>
 
         {/* 7-day history */}
-        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-          <h2 className="mb-4 text-sm font-medium text-gray-700">Last 7 days</h2>
+        <div className="rounded-card bg-white p-5 shadow-card">
+          <h2 className="mb-4 text-sm font-semibold text-ink">Last 7 days</h2>
 
           {/* Bar chart */}
-          <div className="flex h-24 items-end gap-1">
+          <div className="flex h-24 items-end gap-1.5">
             {history.map((day) => {
               const barPct = day.calories > 0 ? Math.min((day.calories / maxScale) * 100, 100) : 0
               const over = goalCal > 0 && day.calories > goalCal
               const isToday = day.date === today.date
               return (
-                <div key={day.date} className="flex flex-1 flex-col items-center gap-1 h-full">
+                <div key={day.date} className="flex h-full flex-1 flex-col items-center gap-1">
                   <div className="flex w-full flex-1 items-end">
                     <div
-                      className={`w-full rounded-t transition-all ${
+                      className={`anim-bar-rise w-full rounded-t ${
                         day.calories === 0
-                          ? 'bg-gray-100'
+                          ? 'bg-bg'
                           : over
-                          ? 'bg-amber-400'
-                          : 'bg-emerald-400'
-                      } ${isToday ? 'ring-2 ring-gray-400 ring-offset-1' : ''}`}
+                          ? 'bg-amber2'
+                          : 'bg-lime-deep'
+                      } ${isToday ? 'ring-2 ring-ink/30 ring-offset-1' : ''}`}
                       style={{ height: barPct > 0 ? `${barPct}%` : '3px' }}
                     />
                   </div>
@@ -163,13 +156,13 @@ export default async function DashboardPage() {
           </div>
 
           {/* Day labels */}
-          <div className="mt-1 flex gap-1">
+          <div className="mt-1 flex gap-1.5">
             {history.map((day) => {
               const dow = new Date(day.date + 'T00:00:00').getDay()
               const isToday = day.date === today.date
               return (
                 <div key={day.date} className="flex-1 text-center">
-                  <span className={`text-xs ${isToday ? 'font-semibold text-gray-900' : 'text-gray-400'}`}>
+                  <span className={`text-xs font-medium ${isToday ? 'font-bold text-ink' : 'text-sub'}`}>
                     {isToday ? 'Today' : DAY_LABELS[dow]}
                   </span>
                 </div>
@@ -178,10 +171,10 @@ export default async function DashboardPage() {
           </div>
 
           {/* Calorie labels */}
-          <div className="mt-2 flex gap-1">
+          <div className="mt-2 flex gap-1.5">
             {history.map((day) => (
               <div key={day.date} className="flex-1 text-center">
-                <span className="text-xs text-gray-500">
+                <span className="tnum text-xs font-medium text-sub">
                   {day.calories > 0 ? fmt(day.calories) : '–'}
                 </span>
               </div>
@@ -189,8 +182,8 @@ export default async function DashboardPage() {
           </div>
 
           {goalCal > 0 && (
-            <p className="mt-3 text-xs text-gray-400">
-              Goal: {fmt(goalCal)} kcal/day · <span className="inline-block h-2 w-2 rounded-full bg-emerald-400 align-middle" /> under · <span className="inline-block h-2 w-2 rounded-full bg-amber-400 align-middle" /> over
+            <p className="mt-3 text-xs font-medium text-sub">
+              Goal: {fmt(goalCal)} kcal/day · <span className="inline-block h-2 w-2 rounded-pill bg-lime-deep align-middle" /> under · <span className="inline-block h-2 w-2 rounded-pill bg-amber2 align-middle" /> over
             </p>
           )}
         </div>
@@ -201,6 +194,7 @@ export default async function DashboardPage() {
         {/* Weekly insights */}
         <WeeklyInsights data={weeklyData} />
 
+        <BottomNav />
       </div>
     </main>
   )

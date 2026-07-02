@@ -1,3 +1,73 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer utilities {
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes pop-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes toast-up {
+    from {
+      opacity: 0;
+      transform: translate(-50%, 16px);
+    }
+    to {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
+  }
+
+  @keyframes bar-fill {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
+
+  @keyframes bar-rise {
+    from {
+      transform: scaleY(0);
+    }
+    to {
+      transform: scaleY(1);
+    }
+  }
+
+  .anim-pop-in {
+    animation: pop-in 0.35s ease-out both;
+  }
+
+  .anim-toast {
+    animation: toast-up 0.3s ease-out both;
+  }
+
+  .anim-bar-fill {
+    transform-origin: left;
+    animation: bar-fill 0.7s ease-out both;
+  }
+
+  .anim-bar-rise {
+    transform-origin: bottom;
+    animation: bar-rise 0.7s ease-out both;
+  }
+
+  .anim-ring {
+    transition: stroke-dashoffset 0.7s ease-out;
+  }
+}

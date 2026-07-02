@@ -25,16 +25,16 @@ function StatTile({
   accent?: 'green' | 'amber'
 }) {
   return (
-    <div className="rounded-lg bg-gray-50 px-3 py-3">
-      <p className="mb-0.5 text-xs text-gray-400">{label}</p>
-      <p className={`text-base font-semibold ${
-        accent === 'green' ? 'text-emerald-600'
-        : accent === 'amber' ? 'text-amber-600'
-        : 'text-gray-900'
+    <div className="rounded-field bg-bg px-3.5 py-3">
+      <p className="mb-0.5 text-xs font-medium text-sub">{label}</p>
+      <p className={`tnum text-base font-bold ${
+        accent === 'green' ? 'text-green'
+        : accent === 'amber' ? 'text-amber2'
+        : 'text-ink'
       }`}>
         {value}
       </p>
-      {sub && <p className="mt-0.5 text-xs text-gray-400">{sub}</p>}
+      {sub && <p className="mt-0.5 text-xs font-medium text-sub">{sub}</p>}
     </div>
   )
 }
@@ -46,11 +46,11 @@ export default function WeeklyInsights({ data }: { data: WeeklyData }) {
   const lowData = daysTracked < 2
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-      <h2 className="mb-1 text-sm font-medium text-gray-700">Weekly insights</h2>
+    <div className="rounded-card bg-white p-5 shadow-card">
+      <h2 className="mb-1 text-sm font-semibold text-ink">Weekly insights</h2>
 
       {lowData ? (
-        <p className="mt-2 text-sm text-gray-400">
+        <p className="mt-2 text-sm font-medium text-sub">
           {daysTracked === 0
             ? 'Log meals across a few days to see your weekly patterns here.'
             : 'Log meals on at least 2 days to unlock weekly trends. Here\'s what\'s available so far:'}
@@ -124,7 +124,7 @@ export default function WeeklyInsights({ data }: { data: WeeklyData }) {
       )}
 
       {!lowData && (
-        <p className="mt-3 text-xs text-gray-400">Based on the last 7 days (SGT)</p>
+        <p className="mt-3 text-xs font-medium text-sub">Based on the last 7 days</p>
       )}
     </div>
   )

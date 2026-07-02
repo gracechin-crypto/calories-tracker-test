@@ -26,14 +26,14 @@ export default function CoachCard({ initialContent, daysWithData }: Props) {
   }
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+    <div className="rounded-card bg-white p-5 shadow-card">
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-medium text-gray-700">Coach&apos;s notes</h2>
+        <h2 className="text-sm font-semibold text-ink">Coach&apos;s notes</h2>
         {daysWithData >= 2 && (
           <button
             onClick={() => handleGenerate(!!content)}
             disabled={loading}
-            className="text-xs text-gray-400 hover:text-gray-600 disabled:opacity-40"
+            className="text-xs font-semibold text-green hover:text-ink disabled:opacity-40"
           >
             {loading ? (
               <span className="flex items-center gap-1">
@@ -49,16 +49,16 @@ export default function CoachCard({ initialContent, daysWithData }: Props) {
       </div>
 
       {daysWithData < 2 ? (
-        <p className="text-sm text-gray-400">
+        <p className="text-sm font-medium text-sub">
           Log a few more meals to get personalised coaching notes. Come back once you&apos;ve tracked at least 2 days.
         </p>
       ) : content ? (
-        <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-700">{content}</p>
+        <p className="whitespace-pre-wrap text-sm font-medium leading-relaxed text-ink">{content}</p>
       ) : error ? (
-        <p className="text-sm text-red-500">{error}</p>
+        <p className="text-sm font-medium text-coral">{error}</p>
       ) : (
-        <p className="text-sm text-gray-400">
-          Click &ldquo;Generate&rdquo; above to get personalised observations about your eating patterns.
+        <p className="text-sm font-medium text-sub">
+          Tap &ldquo;Generate&rdquo; above to get personalised observations about your eating patterns.
         </p>
       )}
     </div>
