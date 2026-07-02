@@ -39,13 +39,22 @@ function sgtDateOffset(nowMs: number, days: number): string {
   return toSGTDate(nowMs + days * 24 * 60 * 60 * 1000)
 }
 
-export async function getDashboardData(): Promise<DashboardData> {
+export async function getDashboardData(
+  // Optional pre-authenticated client + user id let callers (e.g. the dashboard
+  // page) share one auth round trip across several parallel queries.
+  existingClient?: Awaited<ReturnType<typeof createClient>>,
+  existingUserId?: string,
+): Promise<DashboardData> {
   // Prevent Next.js 14 data cache from serving a stale empty result.
   noStore()
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Not authenticated')
+  const supabase = existingClient ?? await createClient()
+  let userId = existingUserId
+  if (!userId) {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Not authenticated')
+    userId = user.id
+  }
 
   const nowMs = Date.now()
   // 8-day rolling window (not 7) so timezone shifts never exclude day-0 meals.
@@ -53,11 +62,11 @@ export async function getDashboardData(): Promise<DashboardData> {
   console.log(`[dashboard] querying meals from ${queryStart}`)
 
   const [{ data: goalRow }, { data: meals }] = await Promise.all([
-    supabase.from('daily_goals').select('*').eq('user_id', user.id).maybeSingle(),
+    supabase.from('daily_goals').select('*').eq('user_id', userId).maybeSingle(),
     supabase
       .from('meals')
       .select('calories, protein_g, carbs_g, fat_g, logged_at')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .gte('logged_at', queryStart),
   ])
 

@@ -10,33 +10,31 @@ function fmt(n: number) { return Math.round(n).toLocaleString() }
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 export default async function DashboardPage() {
-  const { goal, today, history } = await getDashboardData()
-
-  // Load today's cached coaching notes (if any) for initial render
-  const todaySGT = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  // One auth round trip, then every query runs in a single parallel batch.
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  const { data: coachRow } = user
-    ? await supabase
-        .from('coaching_notes')
-        .select('content')
-        .eq('user_id', user.id)
-        .eq('date', todaySGT)
-        .maybeSingle()
-    : { data: null }
+  if (!user) throw new Error('Not authenticated')
+
+  const todaySGT = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  const weekQueryStart = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString()
+
+  const [{ goal, today, history }, { data: coachRow }, { data: mealNameRows }] = await Promise.all([
+    getDashboardData(supabase, user.id),
+    supabase
+      .from('coaching_notes')
+      .select('content')
+      .eq('user_id', user.id)
+      .eq('date', todaySGT)
+      .maybeSingle(),
+    supabase
+      .from('meals')
+      .select('name')
+      .eq('user_id', user.id)
+      .gte('logged_at', weekQueryStart)
+      .not('name', 'is', null),
+  ])
 
   const daysWithData = history.filter((d) => d.calories > 0).length
-
-  // Fetch individual meal names for dish-frequency stat (separate from aggregated history)
-  const weekQueryStart = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString()
-  const { data: mealNameRows } = user
-    ? await supabase
-        .from('meals')
-        .select('name')
-        .eq('user_id', user.id)
-        .gte('logged_at', weekQueryStart)
-        .not('name', 'is', null)
-    : { data: null }
 
   const nameCounts: Record<string, number> = {}
   for (const row of mealNameRows ?? []) {
